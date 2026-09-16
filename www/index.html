@@ -273,6 +273,7 @@
   .divider { height: 1px; background: var(--border); margin: 16px 0; }
   .tag { font-size: 11px; padding: 2px 8px; border-radius: 6px; font-weight: 600; }
   .tag-interes { background: rgba(46,204,138,.12); color: var(--accent2); }
+  .tag-capital { background: rgba(79,142,247,.12); color: var(--accent); }
 </style>
 </head>
 <body>
@@ -452,6 +453,13 @@
     <button class="modal-close" onclick="closeModal('modal-pago')">✕</button>
     <div class="modal-title">Registrar pago</div>
     <div class="form-group">
+      <label class="form-label">Abono a</label>
+      <select class="form-select" id="p-tipo">
+        <option value="capital">Capital</option>
+        <option value="interes">Interés</option>
+      </select>
+    </div>
+    <div class="form-group">
       <label class="form-label">Monto del pago (L)</label>
       <input class="form-input" type="number" id="p-monto" placeholder="0.00">
     </div>
@@ -491,7 +499,7 @@
       <div><b>↓ Exportar</b><br><span style="color:var(--text2)">Descarga una copia de seguridad (archivo JSON) de todos tus préstamos y pagos.</span></div>
       <div><b>⎋ Cerrar sesión</b><br><span style="color:var(--text2)">Bloquea la app; debes ingresar tu PIN de nuevo para volver a entrar.</span></div>
       <div><b>Resumen / Deudores / Calculadora</b><br><span style="color:var(--text2)">Totales generales, tu lista de deudores, y un simulador de interés que no guarda nada.</span></div>
-      <div><b>Dentro de un deudor</b><br><span style="color:var(--text2)">Puedes editar sus datos (✎ Editar), cambiar su estado, registrar pagos, y si le pusiste un plazo fijo, ver su plan de cuotas.</span></div>
+      <div><b>Dentro de un deudor</b><br><span style="color:var(--text2)">Puedes editar sus datos (✎ Editar), cambiar su estado, registrar pagos indicando si van a capital o a interés, y si le pusiste un plazo fijo, ver su plan de cuotas.</span></div>
       <div><b>Botón atrás del teléfono</b><br><span style="color:var(--text2)">Funciona igual que el botón ← de la app: cierra pantallas y menús paso a paso.</span></div>
     </div>
     <button class="btn btn-primary" style="margin-top:20px;" onclick="cerrarTutorial()">Entendido</button>
@@ -691,12 +699,19 @@ function renderResumen() {
   const ps = getPrestamos();
   const activos = ps.filter(p => p.estado === 'activo');
   let totalCapital = 0, totalEsperado = 0, totalPagado = 0;
+  let capitalCobrado = 0, interesCobrado = 0, capitalPendiente = 0, interesPendiente = 0;
   activos.forEach(p => {
-    const { total } = calcInteresCompuesto(p.monto, p.tasa, p.tipo, p.fecha);
-    const pagado = (p.pagos || []).reduce((s, pg) => s + pg.monto, 0);
+    const { total, interes } = calcInteresCompuesto(p.monto, p.tasa, p.tipo, p.fecha);
+    const pagos = p.pagos || [];
+    const capPag = pagos.filter(pg => tipoPago(pg) === 'capital').reduce((s, pg) => s + pg.monto, 0);
+    const intPag = pagos.filter(pg => tipoPago(pg) === 'interes').reduce((s, pg) => s + pg.monto, 0);
     totalCapital += p.monto;
     totalEsperado += total;
-    totalPagado += pagado;
+    totalPagado += capPag + intPag;
+    capitalCobrado += capPag;
+    interesCobrado += intPag;
+    capitalPendiente += Math.max(0, p.monto - capPag);
+    interesPendiente += Math.max(0, interes - intPag);
   });
   const gananciaPotencial = totalEsperado - totalCapital;
   const perdidaCondonar = gananciaPotencial;
@@ -706,6 +721,10 @@ function renderResumen() {
     <div class="stat-card"><div class="stat-label">Total esperado</div><div class="stat-value green">${fmtL(totalEsperado)}</div></div>
     <div class="stat-card"><div class="stat-label">Interés acumulado</div><div class="stat-value warn">${fmtL(gananciaPotencial)}</div></div>
     <div class="stat-card"><div class="stat-label">Si condona interés pierde</div><div class="stat-value danger">${fmtL(perdidaCondonar)}</div></div>
+    <div class="stat-card"><div class="stat-label">Capital cobrado</div><div class="stat-value blue">${fmtL(capitalCobrado)}</div></div>
+    <div class="stat-card"><div class="stat-label">Interés cobrado</div><div class="stat-value green">${fmtL(interesCobrado)}</div></div>
+    <div class="stat-card"><div class="stat-label">Capital pendiente</div><div class="stat-value warn">${fmtL(capitalPendiente)}</div></div>
+    <div class="stat-card"><div class="stat-label">Interés pendiente</div><div class="stat-value danger">${fmtL(interesPendiente)}</div></div>
   `;
 
   // Chart
@@ -789,7 +808,11 @@ function abrirDetalle(id) {
 function renderDetalle(p) {
   const { total, interes, periodos } = calcInteresCompuesto(p.monto, p.tasa, p.tipo, p.fecha);
   const pagos = p.pagos || [];
-  const totalPagado = pagos.reduce((s, pg) => s + pg.monto, 0);
+  const capitalPagado = pagos.filter(pg => tipoPago(pg) === 'capital').reduce((s, pg) => s + pg.monto, 0);
+  const interesPagado = pagos.filter(pg => tipoPago(pg) === 'interes').reduce((s, pg) => s + pg.monto, 0);
+  const totalPagado = capitalPagado + interesPagado;
+  const capitalPendiente = Math.max(0, Math.round((p.monto - capitalPagado) * 100) / 100);
+  const interesPendiente = Math.max(0, Math.round((interes - interesPagado) * 100) / 100);
   const saldo = Math.max(0, Math.round((total - totalPagado) * 100) / 100);
   const el = document.getElementById('detalle-content');
 
@@ -798,6 +821,7 @@ function renderDetalle(p) {
       <div class="label">Saldo pendiente</div>
       <div class="amount">${fmtL(saldo)}</div>
       <div class="sub">${p.tasa}% ${p.tipo} · ${periodos} períodos transcurridos</div>
+      <div class="sub" style="margin-top:6px;">Capital pendiente: ${fmtL(capitalPendiente)} · Interés pendiente: ${fmtL(interesPendiente)}</div>
     </div>
     <div class="desglose-grid">
       <div class="desglose-item"><div class="dl">Capital</div><div class="dv" style="color:var(--accent)">${fmtL(p.monto)}</div></div>
@@ -824,7 +848,7 @@ function renderDetalle(p) {
           pagos.slice().reverse().map(pg => `
             <div class="pago-item">
               <div>
-                <div style="font-weight:600;">${pg.nota || 'Pago'}</div>
+                <div style="font-weight:600;">${pg.nota || 'Pago'} <span class="tag ${tipoPago(pg) === 'interes' ? 'tag-interes' : 'tag-capital'}">${tipoPago(pg) === 'interes' ? 'Interés' : 'Capital'}</span></div>
                 <div class="pago-fecha">${fmtFecha(pg.fecha)}</div>
               </div>
               <div class="pago-monto">${fmtL(pg.monto)}</div>
@@ -958,18 +982,21 @@ function guardarPago() {
   const monto = parseFloat(document.getElementById('p-monto').value);
   const fecha = document.getElementById('p-fecha').value;
   const nota = document.getElementById('p-nota').value.trim();
+  const tipo = document.getElementById('p-tipo').value;
   if (isNaN(monto) || monto <= 0 || !fecha) { alert('Ingresa el monto y la fecha del pago.'); return; }
   const ps = getPrestamos();
   const idx = ps.findIndex(x => x.id === deudorActualId);
   if (idx === -1) return;
   ps[idx].pagos = ps[idx].pagos || [];
-  ps[idx].pagos.push({ monto, fecha, nota: nota || 'Pago parcial' });
+  ps[idx].pagos.push({ monto, fecha, nota: nota || 'Pago parcial', tipo });
   setPrestamos(ps);
   document.getElementById('p-monto').value = '';
   document.getElementById('p-nota').value = '';
   closeModal('modal-pago');
   refrescarVistas();
 }
+
+function tipoPago(pg) { return pg.tipo || 'capital'; }
 
 // ─── CALCULADORA ───
 function calcular() {
@@ -1010,6 +1037,7 @@ function exportarDatos() {
 function openModal(id) {
   if (id === 'modal-pago') {
     document.getElementById('p-fecha').value = new Date().toISOString().slice(0, 10);
+    document.getElementById('p-tipo').value = 'capital';
   }
   document.getElementById(id).classList.add('visible');
 }
