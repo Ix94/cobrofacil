@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1a2744">
+<meta name="description" content="Gestión de préstamos personales">
+<title>CobroFácil</title>
+<style>
+  :root {
+    --bg: #0f1729;
+    --surface: #1a2744;
+    --surface2: #223260;
+    --accent: #4f8ef7;
+    --accent2: #2ecc8a;
+    --danger: #e05252;
+    --warning: #f5a623;
+    --text: #eef2ff;
+    --text2: #8fa3cc;
+    --border: rgba(79,142,247,0.18);
+    --radius: 14px;
+    --font: 'Segoe UI', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* ── PIN SCREEN ── */
+  #pin-screen {
+    position: fixed; inset: 0; background: var(--bg);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 1000; gap: 24px; padding: 32px;
+  }
+  .pin-logo { font-size: 42px; font-weight: 800; color: var(--accent); letter-spacing: -2px; }
+  .pin-sub { color: var(--text2); font-size: 14px; text-align: center; }
+  .pin-dots { display: flex; gap: 14px; margin: 8px 0; }
+  .pin-dot {
+    width: 16px; height: 16px; border-radius: 50%;
+    border: 2px solid var(--accent); background: transparent;
+    transition: background .15s;
+  }
+  .pin-dot.filled { background: var(--accent); }
+  .pin-pad { display: grid; grid-template-columns: repeat(3, 72px); gap: 12px; }
+  .pin-btn {
+    width: 72px; height: 72px; border-radius: 50%;
+    background: var(--surface); border: 1.5px solid var(--border);
+    color: var(--text); font-size: 22px; font-weight: 600;
+    cursor: pointer; transition: background .12s, transform .08s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .pin-btn:active { background: var(--surface2); transform: scale(0.93); }
+  .pin-btn.del { font-size: 18px; color: var(--text2); }
+  .pin-btn.empty { background: transparent; border-color: transparent; cursor: default; }
+  .pin-error { color: var(--danger); font-size: 13px; text-align: center; min-height: 18px; }
+  .pin-setup-hint { color: var(--text2); font-size: 12px; text-align: center; max-width: 240px; }
+
+  /* ── MAIN APP ── */
+  #app { display: none; flex-direction: column; min-height: 100vh; }
+  #app.visible { display: flex; }
+
+  /* ── HEADER ── */
+  .app-header {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 16px 20px; display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .app-logo { font-size: 20px; font-weight: 800; color: var(--accent); letter-spacing: -1px; }
+  .header-actions { display: flex; gap: 10px; }
+  .icon-btn {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text2); cursor: pointer; font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    transition: color .15s, background .15s;
+  }
+  .icon-btn:hover { color: var(--accent); background: var(--bg); }
+
+  /* ── TABS ── */
+  .tabs {
+    display: flex; background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 0 4px; gap: 2px; overflow-x: auto;
+  }
+  .tab {
+    padding: 12px 16px; font-size: 13px; font-weight: 600; color: var(--text2);
+    cursor: pointer; border-bottom: 2.5px solid transparent; white-space: nowrap;
+    transition: color .15s, border-color .15s;
+  }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ── CONTENT ── */
+  .content { padding: 20px; flex: 1; max-width: 540px; margin: 0 auto; width: 100%; }
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* ── CARDS ── */
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 18px; margin-bottom: 14px;
+  }
+  .card-header {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;
+  }
+  .card-title { font-size: 15px; font-weight: 700; }
+  .card-sub { font-size: 12px; color: var(--text2); margin-top: 2px; }
+
+  /* ── SUMMARY STATS ── */
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px; }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px;
+  }
+  .stat-label { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+  .stat-value { font-size: 22px; font-weight: 800; }
+  .stat-value.green { color: var(--accent2); }
+  .stat-value.blue { color: var(--accent); }
+  .stat-value.warn { color: var(--warning); }
+  .stat-value.danger { color: var(--danger); }
+
+  /* ── BAR CHART ── */
+  .chart-container { margin: 16px 0; }
+  .chart-bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .chart-label { font-size: 12px; color: var(--text2); width: 90px; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chart-bar-wrap { flex: 1; background: var(--bg); border-radius: 6px; height: 22px; overflow: hidden; position: relative; }
+  .chart-bar { height: 100%; border-radius: 6px; transition: width .4s ease; display: flex; align-items: center; padding-left: 8px; }
+  .chart-bar.capital { background: var(--accent); }
+  .chart-bar.total { background: var(--accent2); }
+  .chart-amount { font-size: 11px; font-weight: 700; color: #fff; white-space: nowrap; }
+
+  /* ── DEUDORES LIST ── */
+  .deudor-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px; margin-bottom: 12px; cursor: pointer;
+    transition: border-color .15s;
+  }
+  .deudor-card:hover { border-color: var(--accent); }
+  .deudor-top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .deudor-name { font-size: 16px; font-weight: 700; }
+  .deudor-estado { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
+  .estado-activo { background: rgba(79,142,247,.15); color: var(--accent); }
+  .estado-pagado { background: rgba(46,204,138,.15); color: var(--accent2); }
+  .estado-condonado { background: rgba(245,166,35,.15); color: var(--warning); }
+  .deudor-monto { font-size: 20px; font-weight: 800; color: var(--accent); margin: 6px 0 2px; }
+  .deudor-detail { font-size: 12px; color: var(--text2); }
+  .deudor-progress { margin-top: 10px; }
+  .progress-bar-bg { background: var(--bg); border-radius: 4px; height: 6px; overflow: hidden; }
+  .progress-bar-fill { height: 100%; border-radius: 4px; background: var(--accent2); transition: width .3s; }
+  .progress-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--text2); margin-top: 4px; }
+
+  /* ── FORMS ── */
+  .form-group { margin-bottom: 16px; }
+  .form-label { font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 6px; display: block; letter-spacing: .3px; }
+  .form-input, .form-select, .form-textarea {
+    width: 100%; background: var(--bg); border: 1.5px solid var(--border);
+    border-radius: 10px; padding: 12px 14px; color: var(--text);
+    font-size: 15px; font-family: var(--font); transition: border-color .15s;
+    appearance: none;
+  }
+  .form-input:focus, .form-select:focus, .form-textarea:focus {
+    outline: none; border-color: var(--accent);
+  }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-textarea { min-height: 80px; resize: vertical; }
+  .btn {
+    width: 100%; padding: 14px; border-radius: 12px; font-size: 15px; font-weight: 700;
+    cursor: pointer; border: none; transition: opacity .15s, transform .08s;
+    font-family: var(--font);
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-success { background: var(--accent2); color: #0f1729; }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-sm { padding: 8px 14px; font-size: 13px; width: auto; border-radius: 8px; }
+  .btn-row { display: flex; gap: 10px; margin-top: 8px; }
+
+  /* ── DETALLE DEUDOR ── */
+  #detalle-screen {
+    display: none; position: fixed; inset: 0; background: var(--bg);
+    z-index: 200; overflow-y: auto; padding-bottom: 40px;
+  }
+  #detalle-screen.visible { display: block; }
+  .detalle-header {
+    background: var(--surface); padding: 16px 20px;
+    display: flex; align-items: center; gap: 14px; border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .back-btn {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 50%;
+    width: 36px; height: 36px; cursor: pointer; color: var(--text);
+    font-size: 18px; display: flex; align-items: center; justify-content: center;
+  }
+  .detalle-content { padding: 20px; max-width: 540px; margin: 0 auto; }
+  .monto-display {
+    text-align: center; padding: 24px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 16px;
+  }
+  .monto-display .label { font-size: 12px; color: var(--text2); margin-bottom: 4px; }
+  .monto-display .amount { font-size: 36px; font-weight: 900; color: var(--accent); }
+  .monto-display .sub { font-size: 13px; color: var(--text2); margin-top: 4px; }
+  .desglose-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .desglose-item { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px; text-align: center; }
+  .desglose-item .dl { font-size: 10px; color: var(--text2); margin-bottom: 4px; }
+  .desglose-item .dv { font-size: 15px; font-weight: 800; }
+  .pagos-list { margin-top: 8px; }
+  .pago-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px;
+  }
+  .pago-item:last-child { border-bottom: none; }
+  .pago-fecha { color: var(--text2); }
+  .pago-monto { font-weight: 700; color: var(--accent2); }
+
+  /* ── MODAL ── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6);
+    z-index: 300; align-items: flex-end; justify-content: center;
+  }
+  .modal-overlay.visible { display: flex; }
+  .modal {
+    background: var(--surface); border-radius: 20px 20px 0 0;
+    padding: 24px 20px 40px; width: 100%; max-width: 540px;
+    border-top: 1px solid var(--border); max-height: 90vh; overflow-y: auto;
+  }
+  .modal-title { font-size: 18px; font-weight: 800; margin-bottom: 20px; }
+  .modal-close {
+    position: absolute; right: 20px; top: 20px;
+    background: var(--surface2); border: none; border-radius: 50%;
+    width: 32px; height: 32px; color: var(--text2); font-size: 16px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ── CONDONACION CALC ── */
+  .condonacion-box {
+    background: rgba(245,166,35,.08); border: 1px solid rgba(245,166,35,.3);
+    border-radius: 12px; padding: 16px; margin: 12px 0;
+  }
+  .condonacion-title { font-size: 13px; font-weight: 700; color: var(--warning); margin-bottom: 10px; }
+  .condonacion-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; }
+  .condonacion-row .label { color: var(--text2); }
+  .condonacion-row .value { font-weight: 700; }
+  .condonacion-row .value.loss { color: var(--danger); }
+  .condonacion-row .value.gain { color: var(--accent2); }
+
+  .empty-state { text-align: center; padding: 48px 20px; color: var(--text2); }
+  .empty-icon { font-size: 48px; margin-bottom: 12px; }
+  .empty-title { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+
+  .section-title { font-size: 13px; font-weight: 700; color: var(--text2); letter-spacing: .5px; margin-bottom: 12px; text-transform: uppercase; }
+  .divider { height: 1px; background: var(--border); margin: 16px 0; }
+  .tag { font-size: 11px; padding: 2px 8px; border-radius: 6px; font-weight: 600; }
+  .tag-interes { background: rgba(46,204,138,.12); color: var(--accent2); }
+</style>
+</head>
+<body>
+
+<!-- PIN SCREEN -->
+<div id="pin-screen">
+  <div class="pin-logo">CobroFácil</div>
+  <div id="pin-prompt" class="pin-sub">Ingresa tu PIN de 4 dígitos</div>
+  <div class="pin-dots">
+    <div class="pin-dot" id="d0"></div>
+    <div class="pin-dot" id="d1"></div>
+    <div class="pin-dot" id="d2"></div>
+    <div class="pin-dot" id="d3"></div>
+  </div>
+  <div class="pin-error" id="pin-error"></div>
+  <div class="pin-pad">
+    <button class="pin-btn" onclick="pinPress('1')">1</button>
+    <button class="pin-btn" onclick="pinPress('2')">2</button>
+    <button class="pin-btn" onclick="pinPress('3')">3</button>
+    <button class="pin-btn" onclick="pinPress('4')">4</button>
+    <button class="pin-btn" onclick="pinPress('5')">5</button>
+    <button class="pin-btn" onclick="pinPress('6')">6</button>
+    <button class="pin-btn" onclick="pinPress('7')">7</button>
+    <button class="pin-btn" onclick="pinPress('8')">8</button>
+    <button class="pin-btn" onclick="pinPress('9')">9</button>
+    <button class="pin-btn empty"></button>
+    <button class="pin-btn" onclick="pinPress('0')">0</button>
+    <button class="pin-btn del" onclick="pinDel()">⌫</button>
+  </div>
+  <div class="pin-setup-hint" id="pin-hint"></div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <div class="app-header">
+    <div class="app-logo">CobroFácil</div>
+    <div class="header-actions">
+      <button class="icon-btn" onclick="openModal('modal-nuevo')" title="Nuevo préstamo">＋</button>
+      <button class="icon-btn" onclick="exportarDatos()" title="Exportar">↓</button>
+      <button class="icon-btn" onclick="cerrarSesion()" title="Cerrar sesión">⎋</button>
+    </div>
+  </div>
+  <div class="tabs">
+    <div class="tab active" onclick="showTab('resumen')">Resumen</div>
+    <div class="tab" onclick="showTab('deudores')">Deudores</div>
+    <div class="tab" onclick="showTab('calculadora')">Calculadora</div>
+  </div>
+  <div class="content">
+
+    <!-- RESUMEN -->
+    <div class="section active" id="sec-resumen">
+      <div class="stats-grid" id="stats-grid"></div>
+      <div class="section-title">Capital vs. Interés esperado</div>
+      <div class="card">
+        <div class="chart-container" id="chart-main"></div>
+        <div style="display:flex;gap:16px;margin-top:12px;font-size:12px;">
+          <span><span style="display:inline-block;width:10px;height:10px;background:var(--accent);border-radius:2px;margin-right:4px;"></span>Capital prestado</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:var(--accent2);border-radius:2px;margin-right:4px;"></span>Total con interés</span>
+        </div>
+      </div>
+      <div class="section-title">Deudores activos</div>
+      <div id="resumen-deudores"></div>
+    </div>
+
+    <!-- DEUDORES -->
+    <div class="section" id="sec-deudores">
+      <div style="margin-bottom:16px;display:flex;gap:8px;">
+        <input class="form-input" id="buscar" placeholder="Buscar deudor..." oninput="renderDeudores()" style="flex:1;">
+      </div>
+      <div id="lista-deudores"></div>
+    </div>
+
+    <!-- CALCULADORA -->
+    <div class="section" id="sec-calculadora">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:16px;">Simulador de interés</div>
+        <div class="form-group">
+          <label class="form-label">Capital prestado (L)</label>
+          <input class="form-input" type="number" id="calc-capital" placeholder="0.00" oninput="calcular()">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Tasa (%)</label>
+            <input class="form-input" type="number" id="calc-tasa" placeholder="0" oninput="calcular()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Tipo</label>
+            <select class="form-select" id="calc-tipo" onchange="calcular()">
+              <option value="semanal">Semanal</option>
+              <option value="mensual">Mensual</option>
+              <option value="anual">Anual</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Período</label>
+            <input class="form-input" type="number" id="calc-periodos" placeholder="1" oninput="calcular()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">¿Cuántos?</label>
+            <select class="form-select" id="calc-periodo-tipo" onchange="calcular()">
+              <option value="semanas">Semanas</option>
+              <option value="meses">Meses</option>
+            </select>
+          </div>
+        </div>
+        <div id="calc-result" style="margin-top:8px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DETALLE DEUDOR -->
+<div id="detalle-screen">
+  <div class="detalle-header">
+    <button class="back-btn" onclick="cerrarDetalle()">←</button>
+    <div>
+      <div id="detalle-nombre" style="font-size:17px;font-weight:800;"></div>
+      <div id="detalle-fecha" style="font-size:12px;color:var(--text2);"></div>
+    </div>
+    <div style="margin-left:auto;display:flex;gap:8px;">
+      <button class="btn btn-sm btn-ghost" onclick="editarEstado()">Estado</button>
+    </div>
+  </div>
+  <div class="detalle-content" id="detalle-content"></div>
+</div>
+
+<!-- MODAL NUEVO PRÉSTAMO -->
+<div class="modal-overlay" id="modal-nuevo">
+  <div class="modal" style="position:relative;">
+    <button class="modal-close" onclick="closeModal('modal-nuevo')">✕</button>
+    <div class="modal-title">Nuevo préstamo</div>
+    <div class="form-group">
+      <label class="form-label">Nombre del deudor</label>
+      <input class="form-input" id="n-nombre" placeholder="Ej: Juan Pérez">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Monto prestado (L)</label>
+      <input class="form-input" type="number" id="n-monto" placeholder="0.00">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Tasa de interés (%)</label>
+        <input class="form-input" type="number" id="n-tasa" placeholder="Ej: 10">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Tipo</label>
+        <select class="form-select" id="n-tipo">
+          <option value="semanal">Semanal</option>
+          <option value="mensual">Mensual</option>
+          <option value="anual">Anual</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Fecha del préstamo</label>
+      <input class="form-input" type="date" id="n-fecha">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notas (opcional)</label>
+      <textarea class="form-textarea" id="n-notas" placeholder="Garantía, acuerdo, etc."></textarea>
+    </div>
+    <button class="btn btn-primary" onclick="guardarPrestamo()">Guardar préstamo</button>
+  </div>
+</div>
+
+<!-- MODAL PAGO PARCIAL -->
+<div class="modal-overlay" id="modal-pago">
+  <div class="modal" style="position:relative;">
+    <button class="modal-close" onclick="closeModal('modal-pago')">✕</button>
+    <div class="modal-title">Registrar pago</div>
+    <div class="form-group">
+      <label class="form-label">Monto del pago (L)</label>
+      <input class="form-input" type="number" id="p-monto" placeholder="0.00">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Fecha del pago</label>
+      <input class="form-input" type="date" id="p-fecha">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Nota (opcional)</label>
+      <input class="form-input" id="p-nota" placeholder="Ej: Pago en efectivo">
+    </div>
+    <button class="btn btn-success" onclick="guardarPago()">Registrar pago</button>
+  </div>
+</div>
+
+<!-- MODAL ESTADO -->
+<div class="modal-overlay" id="modal-estado">
+  <div class="modal" style="position:relative;">
+    <button class="modal-close" onclick="closeModal('modal-estado')">✕</button>
+    <div class="modal-title">Cambiar estado</div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <button class="btn btn-primary" onclick="cambiarEstado('activo')">Activo (en cobro)</button>
+      <button class="btn btn-success" onclick="cambiarEstado('pagado')">Pagado completamente</button>
+      <button class="btn" style="background:rgba(245,166,35,.2);color:var(--warning);" onclick="cambiarEstado('condonado')">Condonado (solo capital)</button>
+      <button class="btn btn-danger" onclick="eliminarDeudor()">Eliminar registro</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── STORAGE ───
+const DB = {
+  get: (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+
+// ─── PIN ───
+let pinBuffer = '';
+let pinStep = 'check'; // 'setup1' | 'setup2' | 'check'
+let pinTemp = '';
+
+function initPin() {
+  const saved = DB.get('pin');
+  if (!saved) {
+    pinStep = 'setup1';
+    document.getElementById('pin-prompt').textContent = 'Crea tu PIN de seguridad';
+    document.getElementById('pin-hint').textContent = 'Este PIN protege tu información. Guárdalo bien.';
+  } else {
+    pinStep = 'check';
+    document.getElementById('pin-prompt').textContent = 'Ingresa tu PIN';
+  }
+}
+
+function pinPress(d) {
+  if (pinBuffer.length >= 4) return;
+  pinBuffer += d;
+  updateDots();
+  if (pinBuffer.length === 4) setTimeout(() => processPin(), 120);
+}
+
+function pinDel() {
+  pinBuffer = pinBuffer.slice(0, -1);
+  updateDots();
+  document.getElementById('pin-error').textContent = '';
+}
+
+function updateDots() {
+  for (let i = 0; i < 4; i++) {
+    document.getElementById('d' + i).classList.toggle('filled', i < pinBuffer.length);
+  }
+}
+
+function processPin() {
+  if (pinStep === 'setup1') {
+    pinTemp = pinBuffer;
+    pinBuffer = '';
+    updateDots();
+    pinStep = 'setup2';
+    document.getElementById('pin-prompt').textContent = 'Confirma tu PIN';
+    document.getElementById('pin-hint').textContent = '';
+  } else if (pinStep === 'setup2') {
+    if (pinBuffer === pinTemp) {
+      DB.set('pin', pinBuffer);
+      unlockApp();
+    } else {
+      document.getElementById('pin-error').textContent = 'Los PINs no coinciden. Intenta de nuevo.';
+      pinBuffer = ''; pinTemp = '';
+      updateDots();
+      pinStep = 'setup1';
+      document.getElementById('pin-prompt').textContent = 'Crea tu PIN de seguridad';
+    }
+  } else {
+    if (pinBuffer === DB.get('pin')) {
+      unlockApp();
+    } else {
+      document.getElementById('pin-error').textContent = 'PIN incorrecto';
+      pinBuffer = '';
+      updateDots();
+    }
+  }
+}
+
+function unlockApp() {
+  document.getElementById('pin-screen').style.display = 'none';
+  document.getElementById('app').classList.add('visible');
+  renderAll();
+}
+
+function cerrarSesion() {
+  document.getElementById('app').classList.remove('visible');
+  document.getElementById('pin-screen').style.display = 'flex';
+  pinBuffer = '';
+  updateDots();
+  document.getElementById('pin-error').textContent = '';
+  initPin();
+}
+
+// ─── DATOS ───
+function getPrestamos() { return DB.get('prestamos') || []; }
+function setPrestamos(p) { DB.set('prestamos', p); }
+
+function calcInteresCompuesto(capital, tasa, tipo, fechaInicio) {
+  const hoy = new Date();
+  const inicio = new Date(fechaInicio);
+  const diasTranscurridos = Math.max(0, Math.floor((hoy - inicio) / 86400000));
+  let periodos = 0;
+  if (tipo === 'semanal') periodos = diasTranscurridos / 7;
+  else if (tipo === 'mensual') periodos = diasTranscurridos / 30.44;
+  else periodos = diasTranscurridos / 365;
+  const tRate = tasa / 100;
+  const total = capital * Math.pow(1 + tRate, periodos);
+  return { total: Math.round(total * 100) / 100, interes: Math.round((total - capital) * 100) / 100, periodos: Math.round(periodos * 10) / 10 };
+}
+
+function saldoPendiente(p) {
+  const pagos = p.pagos || [];
+  const totalPagado = pagos.reduce((s, pg) => s + pg.monto, 0);
+  const { total } = calcInteresCompuesto(p.monto, p.tasa, p.tipo, p.fecha);
+  return Math.max(0, Math.round((total - totalPagado) * 100) / 100);
+}
+
+function fmtL(n) { return 'L ' + Number(n).toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function fmtFecha(f) { return new Date(f + 'T12:00:00').toLocaleDateString('es-HN', { day: '2-digit', month: 'short', year: 'numeric' }); }
+
+// ─── TABS ───
+function showTab(id) {
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    const ids = ['resumen', 'deudores', 'calculadora'];
+    t.classList.toggle('active', ids[i] === id);
+  });
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.getElementById('sec-' + id).classList.add('active');
+  if (id === 'deudores') renderDeudores();
+  if (id === 'resumen') renderResumen();
+}
+
+// ─── RENDER RESUMEN ───
+function renderResumen() {
+  const ps = getPrestamos();
+  const activos = ps.filter(p => p.estado === 'activo');
+  let totalCapital = 0, totalEsperado = 0, totalPagado = 0;
+  activos.forEach(p => {
+    const { total } = calcInteresCompuesto(p.monto, p.tasa, p.tipo, p.fecha);
+    const pagado = (p.pagos || []).reduce((s, pg) => s + pg.monto, 0);
+    totalCapital += p.monto;
+    totalEsperado += total;
+    totalPagado += pagado;
+  });
+  const gananciaPotencial = totalEsperado - totalCapital;
+  const perdidaCondonar = gananciaPotencial;
+
+  document.getElementById('stats-grid').innerHTML = `
+    <div class="stat-card"><div class="stat-label">Capital prestado</div><div class="stat-value blue">${fmtL(totalCapital)}</div></div>
+    <div class="stat-card"><div class="stat-label">Total esperado</div><div class="stat-value green">${fmtL(totalEsperado)}</div></div>
+    <div class="stat-card"><div class="stat-label">Interés acumulado</div><div class="stat-value warn">${fmtL(gananciaPotencial)}</div></div>
+    <div class="stat-card"><div class="stat-label">Si condona interés pierde</div><div class="stat-value danger">${fmtL(perdidaCondonar)}</div></div>
+  `;
+
+  // Chart
+  const maxVal = Math.max(totalEsperado, 1);
+  const capW = Math.round((totalCapital / maxVal) * 100);
+  const totW = Math.round((totalEsperado / maxVal) * 100);
+  document.getElementById('chart-main').innerHTML = `
+    <div class="chart-bar-row">
+      <div class="chart-label">Capital</div>
+      <div class="chart-bar-wrap"><div class="chart-bar capital" style="width:${capW}%"><span class="chart-amount">${fmtL(totalCapital)}</span></div></div>
+    </div>
+    <div class="chart-bar-row">
+      <div class="chart-label">Con interés</div>
+      <div class="chart-bar-wrap"><div class="chart-bar total" style="width:${totW}%"><span class="chart-amount">${fmtL(totalEsperado)}</span></div></div>
+    </div>
+  `;
+
+  // Top deudores activos
+  const el = document.getElementById('resumen-deudores');
+  if (activos.length === 0) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">💸</div><div class="empty-title">Sin préstamos activos</div><div>Toca ＋ para agregar tu primer préstamo.</div></div>`;
+    return;
+  }
+  el.innerHTML = activos.slice(0, 5).map(p => {
+    const { total, interes } = calcInteresCompuesto(p.monto, p.tasa, p.tipo, p.fecha);
+    const pagado = (p.pagos || []).reduce((s, pg) => s + pg.monto, 0);
+    const pct = Math.min(100, Math.round((pagado / total) * 100));
+    return `<div class="deudor-card" onclick="abrirDetalle('${p.id}')">
+      <div class="deudor-top"><span class="deudor-name">${p.nombre}</span><span class="deudor-estado estado-activo">Activo</span></div>
+      <div class="deudor-monto">${fmtL(total)}</div>
+      <div class="deudor-detail">Capital: ${fmtL(p.monto)} · Interés: ${fmtL(interes)} · ${p.tasa}% ${p.tipo}</div>
+      <div class="deudor-progress">
+        <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
+        <div class="progress-label"><span>Pagado: ${fmtL(pagado)}</span><span>${pct}%</span></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ─── RENDER DEUDORES ───
+function renderDeudores() {
+  const buscar = (document.getElementById('buscar')?.value || '').toLowerCase();
+  const ps = getPrestamos().filter(p => p.nombre.toLowerCase().includes(buscar));
+  const el = document.getElementById('lista-deudores');
+  if (ps.length === 0) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">👤</div><div class="empty-title">Sin deudores</div><div>Agrega tu primer préstamo con el botón ＋</div></div>`;
+    return;
+  }
+  el.innerHTML = ps.map(p => {
+    const { total, interes } = calcInteresCompuesto(p.monto, p.tasa, p.tipo, p.fecha);
+    const pagado = (p.pagos || []).reduce((s, pg) => s + pg.monto, 0);
+    const pct = Math.min(100, Math.round((pagado / total) * 100));
+    const cls = `estado-${p.estado}`;
+    const label = { activo: 'Activo', pagado: 'Pagado', condonado: 'Condonado' }[p.estado];
+    return `<div class="deudor-card" onclick="abrirDetalle('${p.id}')">
+      <div class="deudor-top"><span class="deudor-name">${p.nombre}</span><span class="deudor-estado ${cls}">${label}</span></div>
+      <div class="deudor-monto">${fmtL(total)}</div>
+      <div class="deudor-detail">Capital: ${fmtL(p.monto)} · Interés: ${fmtL(interes)} · ${p.tasa}% ${p.tipo}</div>
+      ${p.estado === 'activo' ? `<div class="deudor-progress">
+        <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
+        <div class="progress-label"><span>Pagado: ${fmtL(pagado)}</span><span>${pct}%</span></div>
+      </div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// ─── DETALLE ───
+let deudorActualId = null;
+
+function abrirDetalle(id) {
+  deudorActualId = id;
+  const p = getPrestamos().find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('detalle-nombre').textContent = p.nombre;
+  document.getElementById('detalle-fecha').textContent = 'Desde ' + fmtFecha(p.fecha);
+  renderDetalle(p);
+  document.getElementById('detalle-screen').classList.add('visible');
+}
+
+function renderDetalle(p) {
+  const { total, interes, periodos } = calcInteresCompuesto(p.monto, p.tasa, p.tipo, p.fecha);
+  const pagos = p.pagos || [];
+  const totalPagado = pagos.reduce((s, pg) => s + pg.monto, 0);
+  const saldo = Math.max(0, Math.round((total - totalPagado) * 100) / 100);
+  const el = document.getElementById('detalle-content');
+
+  el.innerHTML = `
+    <div class="monto-display">
+      <div class="label">Saldo pendiente</div>
+      <div class="amount">${fmtL(saldo)}</div>
+      <div class="sub">${p.tasa}% ${p.tipo} · ${periodos} períodos transcurridos</div>
+    </div>
+    <div class="desglose-grid">
+      <div class="desglose-item"><div class="dl">Capital</div><div class="dv" style="color:var(--accent)">${fmtL(p.monto)}</div></div>
+      <div class="desglose-item"><div class="dl">Interés</div><div class="dv" style="color:var(--accent2)">${fmtL(interes)}</div></div>
+      <div class="desglose-item"><div class="dl">Pagado</div><div class="dv" style="color:var(--warning)">${fmtL(totalPagado)}</div></div>
+    </div>
+
+    <div class="condonacion-box">
+      <div class="condonacion-title">¿Qué pasa si condona el interés?</div>
+      <div class="condonacion-row"><span class="label">Total esperado con interés</span><span class="value">${fmtL(total)}</span></div>
+      <div class="condonacion-row"><span class="label">Si cobra solo capital</span><span class="value">${fmtL(p.monto)}</span></div>
+      <div class="condonacion-row"><span class="label">Pérdida por condonar</span><span class="value loss">−${fmtL(interes)}</span></div>
+    </div>
+
+    ${p.notas ? `<div class="card" style="margin-bottom:14px;"><div style="font-size:12px;color:var(--text2);margin-bottom:4px;">Notas</div><div style="font-size:14px;">${p.notas}</div></div>` : ''}
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Historial de pagos</div>
+        ${p.estado === 'activo' ? `<button class="btn btn-sm btn-success" onclick="openModal('modal-pago')">+ Pago</button>` : ''}
+      </div>
+      <div class="pagos-list">
+        ${pagos.length === 0 ? '<div style="color:var(--text2);font-size:13px;text-align:center;padding:16px 0;">Sin pagos registrados</div>' :
+          pagos.slice().reverse().map(pg => `
+            <div class="pago-item">
+              <div>
+                <div style="font-weight:600;">${pg.nota || 'Pago'}</div>
+                <div class="pago-fecha">${fmtFecha(pg.fecha)}</div>
+              </div>
+              <div class="pago-monto">${fmtL(pg.monto)}</div>
+            </div>
+          `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function cerrarDetalle() {
+  document.getElementById('detalle-screen').classList.remove('visible');
+  deudorActualId = null;
+  renderAll();
+}
+
+function editarEstado() { openModal('modal-estado'); }
+
+function cambiarEstado(estado) {
+  const ps = getPrestamos();
+  const idx = ps.findIndex(x => x.id === deudorActualId);
+  if (idx === -1) return;
+  ps[idx].estado = estado;
+  setPrestamos(ps);
+  closeModal('modal-estado');
+  renderDetalle(ps[idx]);
+}
+
+function eliminarDeudor() {
+  if (!confirm('¿Eliminar este registro? Esta acción no se puede deshacer.')) return;
+  const ps = getPrestamos().filter(x => x.id !== deudorActualId);
+  setPrestamos(ps);
+  closeModal('modal-estado');
+  cerrarDetalle();
+}
+
+// ─── GUARDAR PRESTAMO ───
+function guardarPrestamo() {
+  const nombre = document.getElementById('n-nombre').value.trim();
+  const monto = parseFloat(document.getElementById('n-monto').value);
+  const tasa = parseFloat(document.getElementById('n-tasa').value);
+  const tipo = document.getElementById('n-tipo').value;
+  const fecha = document.getElementById('n-fecha').value;
+  const notas = document.getElementById('n-notas').value.trim();
+  if (!nombre || isNaN(monto) || monto <= 0 || isNaN(tasa) || !fecha) {
+    alert('Por favor completa todos los campos requeridos.');
+    return;
+  }
+  const ps = getPrestamos();
+  ps.push({ id: Date.now().toString(), nombre, monto, tasa, tipo, fecha, notas, estado: 'activo', pagos: [] });
+  setPrestamos(ps);
+  document.getElementById('n-nombre').value = '';
+  document.getElementById('n-monto').value = '';
+  document.getElementById('n-tasa').value = '';
+  document.getElementById('n-notas').value = '';
+  closeModal('modal-nuevo');
+  renderAll();
+}
+
+// ─── GUARDAR PAGO ───
+function guardarPago() {
+  const monto = parseFloat(document.getElementById('p-monto').value);
+  const fecha = document.getElementById('p-fecha').value;
+  const nota = document.getElementById('p-nota').value.trim();
+  if (isNaN(monto) || monto <= 0 || !fecha) { alert('Ingresa el monto y la fecha del pago.'); return; }
+  const ps = getPrestamos();
+  const idx = ps.findIndex(x => x.id === deudorActualId);
+  if (idx === -1) return;
+  ps[idx].pagos = ps[idx].pagos || [];
+  ps[idx].pagos.push({ monto, fecha, nota: nota || 'Pago parcial' });
+  setPrestamos(ps);
+  document.getElementById('p-monto').value = '';
+  document.getElementById('p-nota').value = '';
+  closeModal('modal-pago');
+  renderDetalle(ps[idx]);
+}
+
+// ─── CALCULADORA ───
+function calcular() {
+  const capital = parseFloat(document.getElementById('calc-capital').value);
+  const tasa = parseFloat(document.getElementById('calc-tasa').value);
+  const tipo = document.getElementById('calc-tipo').value;
+  const periodos = parseFloat(document.getElementById('calc-periodos').value) || 1;
+  const ptipo = document.getElementById('calc-periodo-tipo').value;
+  const el = document.getElementById('calc-result');
+  if (isNaN(capital) || isNaN(tasa) || capital <= 0) { el.innerHTML = ''; return; }
+  const rate = tasa / 100;
+  let n = periodos;
+  if (tipo === 'semanal' && ptipo === 'meses') n = periodos * 4.33;
+  else if (tipo === 'mensual' && ptipo === 'semanas') n = periodos / 4.33;
+  const total = capital * Math.pow(1 + rate, n);
+  const interes = total - capital;
+  el.innerHTML = `
+    <div class="divider"></div>
+    <div class="desglose-grid">
+      <div class="desglose-item"><div class="dl">Capital</div><div class="dv" style="color:var(--accent)">${fmtL(capital)}</div></div>
+      <div class="desglose-item"><div class="dl">Interés</div><div class="dv" style="color:var(--accent2)">${fmtL(interes)}</div></div>
+      <div class="desglose-item"><div class="dl">Total</div><div class="dv" style="color:var(--warning)">${fmtL(total)}</div></div>
+    </div>
+  `;
+}
+
+// ─── EXPORTAR ───
+function exportarDatos() {
+  const datos = { prestamos: getPrestamos(), exportado: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(datos, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'cobrofacil-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+  a.click();
+}
+
+// ─── MODALES ───
+function openModal(id) {
+  if (id === 'modal-pago') {
+    document.getElementById('p-fecha').value = new Date().toISOString().slice(0, 10);
+  }
+  if (id === 'modal-nuevo') {
+    document.getElementById('n-fecha').value = new Date().toISOString().slice(0, 10);
+  }
+  document.getElementById(id).classList.add('visible');
+}
+function closeModal(id) { document.getElementById(id).classList.remove('visible'); }
+document.querySelectorAll('.modal-overlay').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('visible'); });
+});
+
+function renderAll() { renderResumen(); }
+
+// ─── INIT ───
+initPin();
+</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">CobroFácil</string>
+    <string name="title_activity_main">CobroFácil</string>
+    <string name="package_name">com.cobrofacil.app</string>
+    <string name="custom_url_scheme">com.cobrofacil.app</string>
+</resources>
