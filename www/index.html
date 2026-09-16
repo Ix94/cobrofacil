@@ -29,6 +29,8 @@
     position: fixed; inset: 0; background: var(--bg);
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     z-index: 1000; gap: 24px; padding: 32px;
+    padding-top: max(32px, env(safe-area-inset-top));
+    padding-bottom: max(32px, env(safe-area-inset-bottom));
   }
   .pin-logo { font-size: 42px; font-weight: 800; color: var(--accent); letter-spacing: -2px; }
   .pin-sub { color: var(--text2); font-size: 14px; text-align: center; }
@@ -62,6 +64,9 @@
     background: var(--surface); border-bottom: 1px solid var(--border);
     padding: 16px 20px; display: flex; align-items: center; justify-content: space-between;
     position: sticky; top: 0; z-index: 100;
+    padding-top: max(16px, env(safe-area-inset-top));
+    padding-left: max(20px, env(safe-area-inset-left));
+    padding-right: max(20px, env(safe-area-inset-right));
   }
   .app-logo { font-size: 20px; font-weight: 800; color: var(--accent); letter-spacing: -1px; }
   .header-actions { display: flex; gap: 10px; }
@@ -87,7 +92,10 @@
   .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
   /* ── CONTENT ── */
-  .content { padding: 20px; flex: 1; max-width: 540px; margin: 0 auto; width: 100%; }
+  .content {
+    padding: 20px; flex: 1; max-width: 540px; margin: 0 auto; width: 100%;
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
   .section { display: none; }
   .section.active { display: block; }
 
@@ -182,13 +190,18 @@
     background: var(--surface); padding: 16px 20px;
     display: flex; align-items: center; gap: 14px; border-bottom: 1px solid var(--border);
     position: sticky; top: 0; z-index: 10;
+    padding-top: max(16px, env(safe-area-inset-top));
+    flex-wrap: wrap;
   }
   .back-btn {
     background: var(--surface2); border: 1px solid var(--border); border-radius: 50%;
     width: 36px; height: 36px; cursor: pointer; color: var(--text);
     font-size: 18px; display: flex; align-items: center; justify-content: center;
   }
-  .detalle-content { padding: 20px; max-width: 540px; margin: 0 auto; }
+  .detalle-content {
+    padding: 20px; max-width: 540px; margin: 0 auto;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  }
   .monto-display {
     text-align: center; padding: 24px; background: var(--surface);
     border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 16px;
@@ -219,7 +232,19 @@
     background: var(--surface); border-radius: 20px 20px 0 0;
     padding: 24px 20px 40px; width: 100%; max-width: 540px;
     border-top: 1px solid var(--border); max-height: 90vh; overflow-y: auto;
+    padding-bottom: calc(40px + env(safe-area-inset-bottom));
   }
+
+  /* ── FAB ── */
+  .fab {
+    position: fixed; right: 20px; bottom: calc(24px + env(safe-area-inset-bottom));
+    width: 60px; height: 60px; border-radius: 50%;
+    background: var(--accent); color: #fff; border: none;
+    font-size: 30px; line-height: 1; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 20px rgba(79,142,247,.45), 0 2px 10px rgba(0,0,0,.35);
+    cursor: pointer; z-index: 150; transition: transform .1s;
+  }
+  .fab:active { transform: scale(0.92); }
   .modal-title { font-size: 18px; font-weight: 800; margin-bottom: 20px; }
   .modal-close {
     position: absolute; right: 20px; top: 20px;
@@ -285,7 +310,7 @@
   <div class="app-header">
     <div class="app-logo">CobroFácil</div>
     <div class="header-actions">
-      <button class="icon-btn" onclick="openModal('modal-nuevo')" title="Nuevo préstamo">＋</button>
+      <button class="icon-btn" onclick="openModal('modal-tutorial')" title="Ayuda">?</button>
       <button class="icon-btn" onclick="exportarDatos()" title="Exportar">↓</button>
       <button class="icon-btn" onclick="cerrarSesion()" title="Cerrar sesión">⎋</button>
     </div>
@@ -359,6 +384,7 @@
       </div>
     </div>
   </div>
+  <button class="fab" onclick="abrirNuevo()" title="Nuevo préstamo">＋</button>
 </div>
 
 <!-- DETALLE DEUDOR -->
@@ -370,6 +396,7 @@
       <div id="detalle-fecha" style="font-size:12px;color:var(--text2);"></div>
     </div>
     <div style="margin-left:auto;display:flex;gap:8px;">
+      <button class="btn btn-sm btn-ghost" onclick="abrirModalEditar(deudorActualId)">✎ Editar</button>
       <button class="btn btn-sm btn-ghost" onclick="editarEstado()">Estado</button>
     </div>
   </div>
@@ -380,7 +407,7 @@
 <div class="modal-overlay" id="modal-nuevo">
   <div class="modal" style="position:relative;">
     <button class="modal-close" onclick="closeModal('modal-nuevo')">✕</button>
-    <div class="modal-title">Nuevo préstamo</div>
+    <div class="modal-title" id="modal-nuevo-titulo">Nuevo préstamo</div>
     <div class="form-group">
       <label class="form-label">Nombre del deudor</label>
       <input class="form-input" id="n-nombre" placeholder="Ej: Juan Pérez">
@@ -402,6 +429,10 @@
           <option value="anual">Anual</option>
         </select>
       </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Plazo en número de períodos (opcional)</label>
+      <input class="form-input" type="number" id="n-plazo" placeholder="Ej: 12 — déjalo vacío si no tiene plazo fijo">
     </div>
     <div class="form-group">
       <label class="form-label">Fecha del préstamo</label>
@@ -447,6 +478,23 @@
       <button class="btn" style="background:rgba(245,166,35,.2);color:var(--warning);" onclick="cambiarEstado('condonado')">Condonado (solo capital)</button>
       <button class="btn btn-danger" onclick="eliminarDeudor()">Eliminar registro</button>
     </div>
+  </div>
+</div>
+
+<!-- MODAL TUTORIAL -->
+<div class="modal-overlay" id="modal-tutorial">
+  <div class="modal" style="position:relative;">
+    <button class="modal-close" onclick="cerrarTutorial()">✕</button>
+    <div class="modal-title">Cómo usar CobroFácil</div>
+    <div style="display:flex;flex-direction:column;gap:14px;font-size:14px;color:var(--text);line-height:1.5;">
+      <div><b>＋ Botón flotante</b><br><span style="color:var(--text2)">Agrega un préstamo nuevo.</span></div>
+      <div><b>↓ Exportar</b><br><span style="color:var(--text2)">Descarga una copia de seguridad (archivo JSON) de todos tus préstamos y pagos.</span></div>
+      <div><b>⎋ Cerrar sesión</b><br><span style="color:var(--text2)">Bloquea la app; debes ingresar tu PIN de nuevo para volver a entrar.</span></div>
+      <div><b>Resumen / Deudores / Calculadora</b><br><span style="color:var(--text2)">Totales generales, tu lista de deudores, y un simulador de interés que no guarda nada.</span></div>
+      <div><b>Dentro de un deudor</b><br><span style="color:var(--text2)">Puedes editar sus datos (✎ Editar), cambiar su estado, registrar pagos, y si le pusiste un plazo fijo, ver su plan de cuotas.</span></div>
+      <div><b>Botón atrás del teléfono</b><br><span style="color:var(--text2)">Funciona igual que el botón ← de la app: cierra pantallas y menús paso a paso.</span></div>
+    </div>
+    <button class="btn btn-primary" style="margin-top:20px;" onclick="cerrarTutorial()">Entendido</button>
   </div>
 </div>
 
@@ -527,6 +575,14 @@ function unlockApp() {
   document.getElementById('pin-screen').style.display = 'none';
   document.getElementById('app').classList.add('visible');
   renderAll();
+  if (!DB.get('tutorialVisto')) {
+    openModal('modal-tutorial');
+  }
+}
+
+function cerrarTutorial() {
+  DB.set('tutorialVisto', true);
+  closeModal('modal-tutorial');
 }
 
 function cerrarSesion() {
@@ -562,11 +618,47 @@ function saldoPendiente(p) {
   return Math.max(0, Math.round((total - totalPagado) * 100) / 100);
 }
 
+// ─── PLAN DE PAGOS (préstamos a plazo fijo) ───
+function sumarPeriodo(fechaStr, tipo, n) {
+  const d = new Date(fechaStr + 'T12:00:00');
+  if (tipo === 'semanal') d.setDate(d.getDate() + 7 * n);
+  else if (tipo === 'mensual') d.setMonth(d.getMonth() + n);
+  else d.setFullYear(d.getFullYear() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+function generarPlanPagos(p) {
+  const periodos = p.plazo;
+  if (!periodos || periodos < 1) return [];
+  const totalFinal = Math.round(p.monto * Math.pow(1 + p.tasa / 100, periodos) * 100) / 100;
+  const cuotaBase = Math.round((totalFinal / periodos) * 100) / 100;
+  const totalPagado = (p.pagos || []).reduce((s, pg) => s + pg.monto, 0);
+  const plan = [];
+  let acumulado = 0;
+  for (let i = 1; i <= periodos; i++) {
+    const esUltima = i === periodos;
+    const monto = esUltima ? Math.round((totalFinal - cuotaBase * (periodos - 1)) * 100) / 100 : cuotaBase;
+    acumulado = Math.round((acumulado + monto) * 100) / 100;
+    plan.push({ numero: i, fechaStr: sumarPeriodo(p.fecha, p.tipo, i), monto, pagada: totalPagado >= acumulado });
+  }
+  return plan;
+}
+
+let planVisible = false;
+function togglePlan() {
+  planVisible = !planVisible;
+  const p = getPrestamos().find(x => x.id === deudorActualId);
+  if (p) renderDetalle(p);
+}
+
 function fmtL(n) { return 'L ' + Number(n).toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function fmtFecha(f) { return new Date(f + 'T12:00:00').toLocaleDateString('es-HN', { day: '2-digit', month: 'short', year: 'numeric' }); }
 
 // ─── TABS ───
+let tabActual = 'resumen';
+
 function showTab(id) {
+  tabActual = id;
   document.querySelectorAll('.tab').forEach((t, i) => {
     const ids = ['resumen', 'deudores', 'calculadora'];
     t.classList.toggle('active', ids[i] === id);
@@ -576,6 +668,23 @@ function showTab(id) {
   if (id === 'deudores') renderDeudores();
   if (id === 'resumen') renderResumen();
 }
+
+// ─── BOTÓN ATRÁS DEL TELÉFONO ───
+function manejarBotonAtras() {
+  const modalAbierto = document.querySelector('.modal-overlay.visible');
+  if (modalAbierto) { closeModal(modalAbierto.id); return; }
+  if (document.getElementById('detalle-screen').classList.contains('visible')) { cerrarDetalle(); return; }
+  if (tabActual !== 'resumen') { showTab('resumen'); return; }
+  if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+    window.Capacitor.Plugins.App.exitApp();
+  }
+}
+
+window.addEventListener('load', () => {
+  if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+    window.Capacitor.Plugins.App.addListener('backButton', manejarBotonAtras);
+  }
+});
 
 // ─── RENDER RESUMEN ───
 function renderResumen() {
@@ -668,6 +777,7 @@ let deudorActualId = null;
 
 function abrirDetalle(id) {
   deudorActualId = id;
+  planVisible = false;
   const p = getPrestamos().find(x => x.id === id);
   if (!p) return;
   document.getElementById('detalle-nombre').textContent = p.nombre;
@@ -722,6 +832,30 @@ function renderDetalle(p) {
           `).join('')}
       </div>
     </div>
+
+    ${p.plazo ? `
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Plan de pagos (${p.plazo} cuotas)</div>
+        <button class="btn btn-sm btn-ghost" onclick="togglePlan()">${planVisible ? 'Ocultar' : 'Ver plan'}</button>
+      </div>
+      ${planVisible ? `
+        <div class="pagos-list">
+          ${generarPlanPagos(p).map(c => `
+            <div class="pago-item">
+              <div>
+                <div style="font-weight:600;">Cuota ${c.numero}</div>
+                <div class="pago-fecha">${fmtFecha(c.fechaStr)}</div>
+              </div>
+              <div style="text-align:right;">
+                <div class="pago-monto">${fmtL(c.monto)}</div>
+                <div style="font-size:10px;font-weight:700;color:${c.pagada ? 'var(--accent2)' : 'var(--text2)'};">${c.pagada ? 'PAGADA' : 'PENDIENTE'}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+    </div>` : ''}
   `;
 }
 
@@ -751,7 +885,46 @@ function eliminarDeudor() {
   cerrarDetalle();
 }
 
-// ─── GUARDAR PRESTAMO ───
+// ─── CREAR / EDITAR PRESTAMO ───
+let editandoId = null;
+
+function abrirNuevo() {
+  editandoId = null;
+  document.getElementById('modal-nuevo-titulo').textContent = 'Nuevo préstamo';
+  document.getElementById('n-nombre').value = '';
+  document.getElementById('n-monto').value = '';
+  document.getElementById('n-tasa').value = '';
+  document.getElementById('n-tipo').value = 'semanal';
+  document.getElementById('n-plazo').value = '';
+  document.getElementById('n-notas').value = '';
+  document.getElementById('n-fecha').value = new Date().toISOString().slice(0, 10);
+  openModal('modal-nuevo');
+}
+
+function abrirModalEditar(id) {
+  const p = getPrestamos().find(x => x.id === id);
+  if (!p) return;
+  editandoId = id;
+  document.getElementById('modal-nuevo-titulo').textContent = 'Editar préstamo';
+  document.getElementById('n-nombre').value = p.nombre;
+  document.getElementById('n-monto').value = p.monto;
+  document.getElementById('n-tasa').value = p.tasa;
+  document.getElementById('n-tipo').value = p.tipo;
+  document.getElementById('n-plazo').value = p.plazo || '';
+  document.getElementById('n-notas').value = p.notas || '';
+  document.getElementById('n-fecha').value = p.fecha;
+  openModal('modal-nuevo');
+}
+
+function refrescarVistas() {
+  renderAll();
+  if (document.getElementById('sec-deudores').classList.contains('active')) renderDeudores();
+  if (document.getElementById('detalle-screen').classList.contains('visible') && deudorActualId) {
+    const p = getPrestamos().find(x => x.id === deudorActualId);
+    if (p) renderDetalle(p);
+  }
+}
+
 function guardarPrestamo() {
   const nombre = document.getElementById('n-nombre').value.trim();
   const monto = parseFloat(document.getElementById('n-monto').value);
@@ -759,19 +932,25 @@ function guardarPrestamo() {
   const tipo = document.getElementById('n-tipo').value;
   const fecha = document.getElementById('n-fecha').value;
   const notas = document.getElementById('n-notas').value.trim();
+  const plazoRaw = document.getElementById('n-plazo').value;
+  const plazo = plazoRaw ? parseInt(plazoRaw, 10) : null;
   if (!nombre || isNaN(monto) || monto <= 0 || isNaN(tasa) || !fecha) {
     alert('Por favor completa todos los campos requeridos.');
     return;
   }
   const ps = getPrestamos();
-  ps.push({ id: Date.now().toString(), nombre, monto, tasa, tipo, fecha, notas, estado: 'activo', pagos: [] });
+  if (editandoId) {
+    const idx = ps.findIndex(x => x.id === editandoId);
+    if (idx !== -1) {
+      ps[idx] = { ...ps[idx], nombre, monto, tasa, tipo, fecha, notas, plazo };
+    }
+  } else {
+    ps.push({ id: Date.now().toString(), nombre, monto, tasa, tipo, fecha, notas, plazo, estado: 'activo', pagos: [] });
+  }
   setPrestamos(ps);
-  document.getElementById('n-nombre').value = '';
-  document.getElementById('n-monto').value = '';
-  document.getElementById('n-tasa').value = '';
-  document.getElementById('n-notas').value = '';
+  editandoId = null;
   closeModal('modal-nuevo');
-  renderAll();
+  refrescarVistas();
 }
 
 // ─── GUARDAR PAGO ───
@@ -789,7 +968,7 @@ function guardarPago() {
   document.getElementById('p-monto').value = '';
   document.getElementById('p-nota').value = '';
   closeModal('modal-pago');
-  renderDetalle(ps[idx]);
+  refrescarVistas();
 }
 
 // ─── CALCULADORA ───
@@ -831,9 +1010,6 @@ function exportarDatos() {
 function openModal(id) {
   if (id === 'modal-pago') {
     document.getElementById('p-fecha').value = new Date().toISOString().slice(0, 10);
-  }
-  if (id === 'modal-nuevo') {
-    document.getElementById('n-fecha').value = new Date().toISOString().slice(0, 10);
   }
   document.getElementById(id).classList.add('visible');
 }
